@@ -7,49 +7,58 @@
   <link rel="shortcut icon" href="/favicon.png">
   <link href='https://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet' type='text/css'>
   <style>
-   body {
-    margin: 0;
-    border-top: 6px solid transparent;
-    color: #333;
-    font-family: 'Open Sans', 'Helvetica Neue', 'Hiragino Sans GB', 'LiHei Pro', Arial, sans-serif;
-    transition: border-color 1.3s ease;
-   }
-   .wrapper {
-    width: 320px;
-    margin: 15% auto 0;
-    text-align: center;
-   }
-   header {
-    margin-bottom: 15px;
-    padding-bottom: 15px;
-    border-bottom: 1px dashed #ccc;
-   }
-   h1 {
-    margin: 12px 0;
-    letter-spacing: 9px;
-    text-transform: uppercase;
-    font-size: 30px;
-   }
-   h2 {
-    color: #999;
-    letter-spacing: .5em;
-    font-size: 14px;
-    font-weight: 400;
-   }
-   p {
-    margin: 0;
-    line-height: 2.5em;
-    letter-spacing: 2px;
-    font-size: 14px;
-   }
-   a {
-    color: #999;
-    text-decoration: none;
-    transition: color .5s ease;
-   }
-   a:hover {
-    color: #ffa500;
-   }
+    body {
+      margin: 0;
+      color: #333;
+      font-family: 'Open Sans', 'Helvetica Neue', 'Hiragino Sans GB', 'LiHei Pro', Arial, sans-serif;
+    }
+    .wrapper {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      z-index: 2;
+      width: 320px;
+      margin-top: -160px;
+      margin-left: -160px;
+      text-align: center;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      user-select: none;
+    }
+    header {
+      margin-bottom: 30px;
+    }
+    h1 {
+      margin: 12px 0;
+      letter-spacing: 9px;
+      text-transform: uppercase;
+      font-size: 30px;
+      font-weight: 400;
+    }
+    h2 {
+      color: #999;
+      letter-spacing: .5em;
+      font-size: 16px;
+      font-weight: 400;
+    }
+    p {
+      margin: 0;
+      line-height: 2.5em;
+      letter-spacing: 2px;
+      font-size: 14px;
+    }
+    a {
+      color: #999;
+      text-decoration: none;
+      transition: color .5s ease;
+    }
+    a:hover {
+      color: #ffa500;
+    }
+    canvas {
+      position: absolute;
+      top: 50%;
+    }
   </style>
 </head>
 <body>
@@ -64,16 +73,110 @@
       <p><a href="http://weibo.com/zsshadow" target="_blank">Weibo</a></p>
     </nav>
   </div>
-  <script>
-    window.onload = function () {
-      document.body.style.borderColor = getRandomColor();
-      setInterval(function () {
-        document.body.style.borderColor = getRandomColor();
-      }, 1500);
-    };
-    var getRandomColor = function(){
-      return '#'+(Math.random()*0xffffff<<0).toString(16);
-    };
-  </script>
+
+<script>
+  function SiriWave(opt){
+    this.opt = opt || {};
+
+    this.K = 2;
+    this.F = 6;
+    this.speed = this.opt.speed || 0.1;
+    this.noise = this.opt.noise || 0;
+    this.phase = this.opt.phase || 0;
+
+    if (!devicePixelRatio) devicePixelRatio = 1;
+    this.width = devicePixelRatio * (this.opt.width || 320);
+    this.height = devicePixelRatio * (this.opt.height || 100);
+    this.MAX = (this.height/2)-4;
+
+    this.canvas = document.createElement('canvas');
+    this.canvas.width = this.width;
+    this.canvas.height = this.height;
+    this.canvas.style.width = (this.width/devicePixelRatio)+'px';
+    this.canvas.style.height = (this.height/devicePixelRatio)+'px';
+    this.canvas.style.marginTop = -(75*devicePixelRatio)+'px';
+
+    (this.opt.container || document.body).appendChild(this.canvas);
+    this.ctx = this.canvas.getContext('2d');
+
+    this.run = false;
+  }
+
+  SiriWave.prototype = {
+
+    _globalAttenuationFn: function(x){
+      return Math.pow(this.K*4/(this.K*4+Math.pow(x,4)),this.K*2);
+    },
+
+    _drawLine: function(attenuation, color, width){
+      this.ctx.moveTo(0,0);
+      this.ctx.beginPath();
+      this.ctx.strokeStyle = color;
+      this.ctx.lineWidth = width || 1;
+      var x, y;
+      for (var i=-this.K; i<=this.K; i+=0.01) {
+        x = this.width*((i+this.K)/(this.K*2));
+        y = this.height/2 + this.noise * this._globalAttenuationFn(i) * (1/attenuation) * Math.sin(this.F*i-this.phase);
+        this.ctx.lineTo(x, y);
+      }
+      this.ctx.stroke();
+    },
+
+    _clear: function(){
+      this.ctx.globalCompositeOperation = 'destination-out';
+      this.ctx.fillRect(0, 0, this.width, this.height);
+      this.ctx.globalCompositeOperation = 'source-over';
+    },
+
+    _draw: function(){
+      if (!this.run) return;
+
+      this.phase = (this.phase+this.speed)%(Math.PI*64);
+      this._clear();
+      this._drawLine(-2, 'rgba(0,0,0,0.1)');
+      this._drawLine(-6, 'rgba(0,0,0,0.2)');
+      this._drawLine(4, 'rgba(0,0,0,0.4)');
+      this._drawLine(2, 'rgba(0,0,0,0.6)');
+      this._drawLine(1, 'rgba(0,0,0,1)', 1.5);
+
+      requestAnimationFrame(this._draw.bind(this), 1000);
+    },
+
+    start: function(){
+      this.phase = 0;
+      this.run = true;
+      this._draw();
+    },
+
+    stop: function(){
+      this.run = false;
+      this._clear();
+    },
+
+    setNoise: function(v){
+      this.noise = Math.min(v, 1)*this.MAX;
+    },
+
+    setSpeed: function(v){
+      this.speed = v;
+    },
+
+    set: function(noise, speed) {
+      this.setNoise(noise);
+      this.setSpeed(speed);
+    }
+
+  };
+
+  var SW = new SiriWave({
+    width: document.body.clientWidth,
+    height: 200
+  });
+  SW.setSpeed(0.2);
+  SW.start();
+  SW.setNoise(0.2);
+
+</script>
+
 </body>
 </html>
